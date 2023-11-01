@@ -229,7 +229,7 @@ defmodule LangChain.ChatModels.ChatOpenAI do
     |> Req.post()
     # parse the body and return it as parsed structs
     |> case do
-      {:ok, %Req.Response{body: data}} ->
+      {:ok, %Req.Response{body: data, status: 200}} ->
         case do_process_response(data) do
           {:error, reason} ->
             {:error, reason}
@@ -239,12 +239,11 @@ defmodule LangChain.ChatModels.ChatOpenAI do
             result
         end
 
-      {:error, %Mint.TransportError{reason: :timeout}} ->
-        {:error, "Request timed out"}
+      {:ok, %Req.Response{} = response} ->
+        {:error, response}
 
-      other ->
-        Logger.error("Unexpected and unhandled API response! #{inspect(other)}")
-        other
+      {:error, %Mint.TransportError{reason: :timeout}} ->
+        {:error, :timeout}
     end
   end
 
@@ -289,9 +288,6 @@ defmodule LangChain.ChatModels.ChatOpenAI do
         {:ok, response} ->
           {request, response}
 
-        {:error, %Mint.TransportError{reason: :timeout}} ->
-          {request, LangChainError.exception("Request timed out")}
-
         {:error, exception} ->
           Logger.error("Failed request to API: #{inspect(exception)}")
           {request, exception}
@@ -317,18 +313,14 @@ defmodule LangChain.ChatModels.ChatOpenAI do
     |> maybe_add_org_id_header()
     |> Req.post()
     |> case do
-      {:ok, %Req.Response{body: data}} ->
+      {:ok, %Req.Response{body: data, status: 200}} ->
         data
 
-      {:error, %LangChainError{message: reason}} ->
-        {:error, reason}
+      {:ok, %Req.Response{} = req} ->
+        {:error, req}
 
-      other ->
-        Logger.error(
-          "Unhandled and unexpected response from streamed post call. #{inspect(other)}"
-        )
-
-        {:error, "Unexpected response"}
+      {:error, %Mint.TransportError{reason: :timeout}} ->
+        {:error, :timeout}
     end
   end
 
